@@ -33,7 +33,7 @@ let rec findParent (directory: string) (fileToFind: string) =
     then path
     else findParent (DirectoryInfo(path).Parent.FullName) fileToFind
 
-let solutionRoot() = findParent __SOURCE_DIRECTORY__ "App.sln"
+let solutionRoot() = findParent __SOURCE_DIRECTORY__ "build.sh"
 
 /// Returns enviroment variables as a dictionary
 let environmentVars() =

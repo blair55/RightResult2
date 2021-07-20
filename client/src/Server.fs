@@ -30,7 +30,7 @@ let normalize (path: string) = combine [ virtualPath; path ]
 
 let normalizeRoutes typeName methodName =
     Shared.routerPaths typeName methodName
-    |> normalize
+    // |> normalize
 
 let api =
     Remoting.createApi()

@@ -12,14 +12,14 @@ open Fake.Core.TargetOperators
 Setup.context()
 
 let path xs = Path.Combine(Array.ofList xs)
-let solutionRoot = Files.findParent __SOURCE_DIRECTORY__ "App.sln";
+let solutionRoot = Files.findParent __SOURCE_DIRECTORY__ "build.sh";
 let server = path [ solutionRoot; "server" ]
 let client =  path [ solutionRoot; "client" ]
 let serverTests = path [ solutionRoot; "serverTests" ]
 let clientTests = path [ solutionRoot; "clientTests" ]
 let clientDist = path [ client; "dist" ]
 let dist = path [ solutionRoot; "dist" ]
-let clientOutput = path [ dist; "wwwroot" ]
+// let clientOutput = path [ dist; "public" ]
 
 Target.create "Clean" <| fun _ ->
     // sometimes files are locked by VS for a bit, retry again until they can be deleted
@@ -76,25 +76,18 @@ Target.create "LiveClientTests" <| fun _ ->
     let exitCode = Shell.Exec(Tools.npm, "run test:live", client)
     if exitCode <> 0 then failwith "Failed to run client tests"
 
-Target.create "Pack" <| fun _ ->
-    match Shell.Exec(Tools.dotnet, sprintf "publish --configuration Release --output %s" dist, server) with
-    | 0 ->
-        let exitCode = Shell.Exec(Tools.npm, "run build", client)
-        if exitCode <> 0 then failwith "Failed to build client"
-        Shell.copyDir clientOutput clientDist (fun file -> true)
-    | n ->
-        failwith "Failed to publish server project"
+let pack _ =
+    // match Shell.Exec(Tools.dotnet, sprintf "publish --configuration Release --output %s" dist, server) with
+    match Shell.Exec(Tools.dotnet, sprintf "lambda package \"%s/package.zip\" -c Release" dist, server) with
+    | 0 -> ()
+    // | 0 -> match Shell.Exec(Tools.npm, "run build", client) with
+    //         | 0 -> Shell.copyDir clientOutput clientDist (fun file -> true)
+    //         | _ -> failwith "Failed to build the client project"
+    | _ -> failwith "Failed to build the server project"
 
-Target.create "PackNoTests" <| fun _ ->
-    match Shell.Exec(Tools.dotnet, sprintf "publish --configuration Release --output %s" dist, server) with
-    | 0 ->
-        match Shell.Exec(Tools.npm, "run build", client) with
-        | 0 ->
-            Shell.copyDir clientOutput clientDist (fun file -> true)
-        | _ ->
-            failwith "Failed to build the client project"
-    | _ ->
-        failwith "Failed to build the server project"
+Target.create "Pack" pack
+
+Target.create "PackNoTests" pack
 
 Target.create "InstallAnalyzers" <| fun _ ->
     let analyzersPath = path [ solutionRoot; "analyzers" ]
@@ -103,6 +96,10 @@ Target.create "InstallAnalyzers" <| fun _ ->
         // { Name = "NpgsqlFSharpAnalyzer"; Version = "3.8.0" }
     ]
 
+Target.create "Deploy" <| fun _ ->
+    let exitCode = Shell.Exec(Tools.dotnet, "lambda deploy-serverless --configuration Release", server)
+    if exitCode <> 0 then failwith "Failed while running deploy"
+
 let dependencies = [
     "RestoreServer" ==> "Server" ==> "ServerTests"
     "RestoreClient" ==> "Client"
@@ -110,11 +107,11 @@ let dependencies = [
     "ServerTests" ==> "Pack"
     "ClientTests" ==> "Pack"
     "RestoreClient" ==> "PackNoTests"
+    "Client" ==> "Deploy"
 ]
 
 [<EntryPoint>]
 let main (args: string[]) =
-    Console.WriteLine(Swag.logo)
     try
         match args with
         | [| "RunDefaultOr" |] -> Target.runOrDefault "Default"
@@ -125,5 +122,5 @@ let main (args: string[]) =
             Target.runOrDefault target
         0
     with ex ->
-        printfn "%A" ex
+        eprintfn "%A" ex
         1

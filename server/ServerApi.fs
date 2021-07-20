@@ -11,7 +11,7 @@ type ServerApi(logger: ILogger<ServerApi>, config: IConfiguration) =
         async {
             logger.LogInformation("Executing {Function}", "counter")
             do! Async.Sleep 1000
-            return { value = 10 }
+            return { value = 11 }
         }
 
     member this.Build() : IServerApi =
